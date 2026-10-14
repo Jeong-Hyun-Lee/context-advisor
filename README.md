@@ -22,7 +22,7 @@ Claude Code 모드(mod). 현재 세션의 컨텍스트·토큰·사용 한도를
 Claude Code 터미널 프롬프트에서:
 
 ```
-/plugin install context-advisor --marketplace <owner>/<repo>
+/plugin install context-advisor --marketplace Jeong-Hyun-Lee/context-advisor
 ```
 
 `Add marketplace?`에 `y`, 범위는 **user**(기본)를 Enter로 선택. 설치한 세션부터 바로 동작하고, user 범위면 이후 모든 프로젝트·세션에서 로드됩니다.
