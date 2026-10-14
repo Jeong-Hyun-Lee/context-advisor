@@ -14,11 +14,13 @@ export type Snapshot = {
   costUsd?: number
   fiveHour?: Limit
   weekly?: Limit
+  /** When this process last saw an API response (rate limits are as of then), epoch ms; 0 if none. */
+  limitsAt: number
 }
 
 export type Runtime = { model: string; effort?: string }
 
-export type TokenTotals = { total: number; cacheRead: number }
+export type TokenTotals = { input: number; output: number; cacheRead: number; cacheWrite: number }
 
 declare module 'claude-code' {
   interface PluginState {

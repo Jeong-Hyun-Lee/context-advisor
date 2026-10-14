@@ -14,6 +14,7 @@ const engine = (on: On) => {
   on('turn.complete', () => ({ text: '' }))
   mock.clock(on)
   mock.store(on)
+  on('session.id', () => ({ value: 's1' }))
 }
 
 const PANE = { title: '컨텍스트 사용량' } as unknown as RenderPropsOf['Pane']
@@ -56,7 +57,7 @@ test('panel draws bars and advice level after a turn', async ($, on) => {
   expect(await term.find({ text: /55%/ })).toBeDefined()
   expect(await term.find({ text: '550k/1.0M' })).toBeDefined()
   expect(await term.find({ text: /리셋/ })).toBeDefined()
-  expect(await term.find({ text: /토큰 100 \(캐시 70%\) · \$1\.50/ })).toBeDefined()
+  expect(await term.find({ text: /토큰 100 · 캐시 히트 88% · \$1\.50/ })).toBeDefined()
   expect(await term.drawn()).toMatchObject({ type: 'Box', props: { borderStyle: 'round' } })
   await term.unmount()
 

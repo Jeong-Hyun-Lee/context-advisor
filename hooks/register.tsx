@@ -1,9 +1,12 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, RenderElement, RenderInput, Register, SessionRateLimit, TurnUsage } from 'claude-code'
+import type { EngineInterface, RenderElement, RenderInput, Register, SessionRateLimit } from 'claude-code'
 
 import type { Lang, Level, Limit, Runtime, Snapshot, TokenTotals } from '../types'
 import {
   BAR_WIDTH,
+  NO_TOKENS,
+  addUsage,
+  cacheHit,
   LEVEL_HEX,
   PALETTE,
   STYLE,
@@ -14,6 +17,8 @@ import {
   gradient,
   limitLevel,
   toConfig,
+  tokenTotal,
+  toTotals,
 } from './classify'
 import { TEXT, flip, toLang } from './i18n'
 import { SVG_WIDTH, cardHeight, cardSvg } from './svg'
@@ -24,7 +29,10 @@ const level = atom({ plugin: 'context-advisor', key: 'level' } as const, 'ok')
 const snapshot = atom({ plugin: 'context-advisor', key: 'snapshot' } as const, null)
 const runtime = atom({ plugin: 'context-advisor', key: 'runtime' } as const, null)
 const lang = atom({ plugin: 'context-advisor', key: 'lang' } as const, 'ko')
-const tokens = atom({ plugin: 'context-advisor', key: 'tokens' } as const, { total: 0, cacheRead: 0 })
+const tokens = atom({ plugin: 'context-advisor', key: 'tokens' } as const, NO_TOKENS)
+const TOKENS_KEY = 'tokens'
+const REFRESH_MS = 60_000
+const STALE_MS = 5 * 60_000
 
 const EMPTY_BAR = '#30363d'
 const CARD_MAX_WIDTH = 72
@@ -40,12 +48,8 @@ const toLimit = (limits: SessionRateLimit[], kind: string, now: number): Limit |
   return { percent: l.percentUsed, resetsIn }
 }
 
-const addUsage = (t: TokenTotals, u: TurnUsage): TokenTotals => ({
-  total: t.total + u.input_tokens + u.output_tokens + u.cache_read_input_tokens + u.cache_creation_input_tokens,
-  cacheRead: t.cacheRead + u.cache_read_input_tokens,
-})
 
-const refresh = async ($: EngineInterface, config: Config) => {
+const refresh = async ($: EngineInterface, config: Config, isApiResponse = false) => {
   const usage = await $.session.usage()
   let { tokens: ctxTokens, percent: ctxPercent, window: ctxWindow } = usage.context
   let isEstimate = false
@@ -70,6 +74,7 @@ const refresh = async ($: EngineInterface, config: Config) => {
     costUsd: usage.cost?.usd,
     fiveHour: toLimit(usage.rateLimits, 'five_hour', now),
     weekly: toLimit(usage.rateLimits, 'seven_day', now),
+    limitsAt: isApiResponse ? now : ((await read($, snapshot))?.limitsAt ?? 0),
   }
   await update($, snapshot, () => snap)
 
@@ -98,9 +103,12 @@ const drawCard = async ($: EngineInterface, e: RenderInput, config: Config, colu
   const t = TEXT[current]
 
   const model = rt ? `${formatModel(rt.model)}${rt.effort ? ` · effort ${rt.effort}` : ''}` : ''
-  const cacheShare = totals.total > 0 ? Math.round((totals.cacheRead / totals.total) * 100) : 0
+  const total = tokenTotal(totals)
+  const now = await $.clock.now()
+  const age = snap.limitsAt > 0 ? now - snap.limitsAt : 0
+  const asOf = age >= STALE_MS ? ` · ${formatSpan(age)} ${t.ago}` : ''
   const cost = snap.costUsd === undefined ? '' : ` · $${snap.costUsd.toFixed(2)}`
-  const tokenPart = totals.total > 0 ? ` · ${t.tokens} ${formatTokens(totals.total)} (${t.cache} ${cacheShare}%)` : ''
+  const tokenPart = total > 0 ? ` · ${t.tokens} ${formatTokens(total)} · ${t.cache} ${cacheHit(totals)}%` : ''
   const footer = `${t.session} ${formatSpan(snap.minutes * 60_000)}${tokenPart}${cost}`
 
   const meters: (SvgMeter & { level: Level })[] = [
@@ -113,7 +121,7 @@ const drawCard = async ($: EngineInterface, e: RenderInput, config: Config, colu
     },
   ]
   const addLimit = (label: string, color: string, l: Limit | undefined) => {
-    if (l) meters.push({ label, percent: l.percent, color, level: limitLevel(l.percent), detail: l.resetsIn ? `${t.resets} ${l.resetsIn}` : '' })
+    if (l) meters.push({ label, percent: l.percent, color, level: limitLevel(l.percent), detail: `${l.resetsIn ? `${t.resets} ${l.resetsIn}` : ''}${asOf}` })
   }
   addLimit(t.fiveHour, PALETTE.fiveHour, snap.fiveHour)
   addLimit(t.weekly, PALETTE.weekly, snap.weekly)
@@ -199,6 +207,12 @@ export const register: Register = (on, options) => {
     const result = await next(e)
     const saved = toLang(await $.store.get(LANG_KEY))
     await update($, lang, () => saved)
+    // Resumed session in a new process: pick up its token totals (kept per session id).
+    const id = await $.session.id()
+    const kept = (await $.store.get(TOKENS_KEY)) as { id?: unknown; totals?: unknown } | undefined
+    if (kept?.id === id && tokenTotal(await read($, tokens)) === 0) await update($, tokens, () => toTotals(kept.totals))
+    // Reset countdowns, cost and estimates move between turns too.
+    $.clock.every(REFRESH_MS, () => void refresh($, config))
     await $.command.register({ name: 'ctx', description: '컨텍스트·토큰 사용량 패널 열기 / open usage pane' })
     if (e.surface !== null && e.surface !== 'terminal') void $.ui.open({ id: PANE, title: TEXT[saved].paneTitle })
     await refresh($, config)
@@ -237,8 +251,12 @@ export const register: Register = (on, options) => {
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)
     const u = e.usage
-    if (u) await update($, tokens, t => addUsage(t ?? { total: 0, cacheRead: 0 }, u))
-    await refresh($, config)
+    if (u) {
+      const summed = addUsage(toTotals(await read($, tokens)), u)
+      await update($, tokens, () => summed)
+      await $.store.set(TOKENS_KEY, { id: await $.session.id(), totals: summed })
+    }
+    await refresh($, config, true)
     return result
   })
 

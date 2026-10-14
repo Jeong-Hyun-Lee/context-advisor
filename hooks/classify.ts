@@ -1,6 +1,6 @@
-import type { PluginOptions } from 'claude-code'
+import type { ModelUsage, PluginOptions } from 'claude-code'
 
-import type { Level } from '../types'
+import type { Level, TokenTotals } from '../types'
 
 export type Config = {
   basis: 'percent' | 'tokens'
@@ -75,3 +75,27 @@ export const shade = (hex: string, f: number): string => {
 // n cells darkening-to-full along the bar: a left-to-right gradient in plain cells.
 export const gradient = (hex: string, n: number): string[] =>
   Array.from({ length: n }, (_, i) => shade(hex, 0.55 + (0.45 * (i + 1)) / Math.max(n, 1)))
+
+export const NO_TOKENS: TokenTotals = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
+
+export const addUsage = (t: TokenTotals, u: ModelUsage): TokenTotals => ({
+  input: t.input + u.input_tokens,
+  output: t.output + u.output_tokens,
+  cacheRead: t.cacheRead + u.cache_read_input_tokens,
+  cacheWrite: t.cacheWrite + u.cache_creation_input_tokens,
+})
+
+export const tokenTotal = (t: TokenTotals): number => t.input + t.output + t.cacheRead + t.cacheWrite
+
+// Same definition as the desktop app's usage panel: cache reads over all input.
+export const cacheHit = (t: TokenTotals): number => {
+  const inputs = t.input + t.cacheRead + t.cacheWrite
+  return inputs > 0 ? Math.round((t.cacheRead / inputs) * 100) : 0
+}
+
+// Old shapes ({ total, cacheRead }) or junk from the store read as no tokens.
+export const toTotals = (v: unknown): TokenTotals => {
+  const o = (v ?? {}) as Partial<Record<keyof TokenTotals, unknown>>
+  const n = (x: unknown): number => (typeof x === 'number' && x >= 0 ? x : 0)
+  return { input: n(o.input), output: n(o.output), cacheRead: n(o.cacheRead), cacheWrite: n(o.cacheWrite) }
+}

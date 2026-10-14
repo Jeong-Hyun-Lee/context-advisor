@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { bar, classify, formatModel, gradient, shade, formatSpan, formatTokens, toConfig } from './classify'
+import { addUsage, bar, cacheHit, classify, NO_TOKENS, tokenTotal, toTotals, formatModel, gradient, shade, formatSpan, formatTokens, toConfig } from './classify'
 
 test('classify boundaries (percent defaults 50/70)', () => {
   const c = toConfig({})
@@ -52,4 +52,14 @@ test('shade and gradient', () => {
   const g = gradient('#4FC3F7', 4)
   expect(g).toHaveLength(4)
   expect(g[3]).toBe('#4fc3f7')
+})
+
+test('token totals and cache hit match the desktop usage panel', () => {
+  // the desktop panel's figures: input 19, output 7.1k, cache read 665.9k, cache write 162.2k -> hit 80%
+  const t = addUsage(NO_TOKENS, { input_tokens: 19, output_tokens: 7_100, cache_read_input_tokens: 665_900, cache_creation_input_tokens: 162_200 })
+  expect(cacheHit(t)).toBe(80)
+  expect(tokenTotal(t)).toBe(835_219)
+  expect(cacheHit(NO_TOKENS)).toBe(0)
+  expect(toTotals({ total: 5, cacheRead: 2 })).toEqual({ input: 0, output: 0, cacheRead: 2, cacheWrite: 0 })
+  expect(toTotals(undefined)).toEqual(NO_TOKENS)
 })
