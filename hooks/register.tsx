@@ -47,14 +47,25 @@ const addUsage = (t: TokenTotals, u: TurnUsage): TokenTotals => ({
 
 const refresh = async ($: EngineInterface, config: Config) => {
   const usage = await $.session.usage()
-  const { context } = usage
-  if (context.tokens === undefined || context.percent === undefined) return
+  let { tokens: ctxTokens, percent: ctxPercent, window: ctxWindow } = usage.context
+  let isEstimate = false
+
+  // No API response yet (fresh / resumed / compacted): local /context estimate, no request sent.
+  if (ctxTokens === undefined || ctxPercent === undefined) {
+    const b = (await $.session.usage({ breakdown: 'summary' })).context.breakdown
+    if (!b) return
+    ctxTokens = b.totalTokens
+    ctxPercent = b.percentage
+    ctxWindow = b.rawMaxTokens
+    isEstimate = true
+  }
 
   const now = await $.clock.now()
   const snap: Snapshot = {
-    ctxTokens: context.tokens,
-    ctxWindow: context.window,
-    ctxPercent: context.percent,
+    ctxTokens,
+    ctxWindow,
+    ctxPercent,
+    isEstimate,
     minutes: Math.round((now - usage.startedAt) / 60_000),
     costUsd: usage.cost?.usd,
     fiveHour: toLimit(usage.rateLimits, 'five_hour', now),
@@ -89,7 +100,8 @@ const drawCard = async ($: EngineInterface, e: RenderInput, config: Config, colu
   const model = rt ? `${formatModel(rt.model)}${rt.effort ? ` · effort ${rt.effort}` : ''}` : ''
   const cacheShare = totals.total > 0 ? Math.round((totals.cacheRead / totals.total) * 100) : 0
   const cost = snap.costUsd === undefined ? '' : ` · $${snap.costUsd.toFixed(2)}`
-  const footer = `${t.session} ${formatSpan(snap.minutes * 60_000)} · ${t.tokens} ${formatTokens(totals.total)} (${t.cache} ${cacheShare}%)${cost}`
+  const tokenPart = totals.total > 0 ? ` · ${t.tokens} ${formatTokens(totals.total)} (${t.cache} ${cacheShare}%)` : ''
+  const footer = `${t.session} ${formatSpan(snap.minutes * 60_000)}${tokenPart}${cost}`
 
   const meters: (SvgMeter & { level: Level })[] = [
     {
@@ -97,7 +109,7 @@ const drawCard = async ($: EngineInterface, e: RenderInput, config: Config, colu
       percent: snap.ctxPercent,
       color: PALETTE.ctx,
       level: ctxLevel,
-      detail: `${formatTokens(snap.ctxTokens)}/${formatTokens(snap.ctxWindow)}`,
+      detail: `${snap.isEstimate ? '~' : ''}${formatTokens(snap.ctxTokens)}/${formatTokens(snap.ctxWindow)}${snap.isEstimate ? ` (${t.estimate})` : ''}`,
     },
   ]
   const addLimit = (label: string, color: string, l: Limit | undefined) => {
@@ -120,7 +132,7 @@ const drawCard = async ($: EngineInterface, e: RenderInput, config: Config, colu
           <Button key="lang" label={t.toggle} hotkey="l" onPress={onToggle} />
         </Box>
         <Svg
-          source={cardSvg({ advice, adviceColor: adviceHex, model, meters: shown, footer: config.showPanel ? footer : '' })}
+          source={cardSvg({ advice: t.advice[ctxLevel], adviceColor: adviceHex, model, meters: shown, footer: config.showPanel ? footer : '' })}
           alt={[advice, ...shown.map(m => `${m.label} ${Math.round(m.percent)}%`)].join(', ')}
         />
       </Box>
@@ -187,6 +199,20 @@ export const register: Register = (on, options) => {
     await update($, lang, () => saved)
     await $.command.register({ name: 'ctx', description: '컨텍스트·토큰 사용량 패널 열기 / open usage pane' })
     if (e.surface !== null && e.surface !== 'terminal') void $.ui.open({ id: PANE, title: TEXT[saved].paneTitle })
+    await refresh($, config)
+    return result
+  })
+
+  // Desktop / VS Code clients often attach after session.start (its surface then null): open + refresh here too.
+  on('session.attach', async ($, e, next) => {
+    const result = await next(e)
+    if (e.surface !== 'terminal') void $.ui.open({ id: PANE, title: TEXT[await read($, lang)].paneTitle })
+    await refresh($, config)
+    return result
+  })
+
+  on('session.compact', async ($, e, next) => {
+    const result = await next(e)
     await refresh($, config)
     return result
   })

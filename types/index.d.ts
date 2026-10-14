@@ -8,6 +8,8 @@ export type Snapshot = {
   ctxTokens: number
   ctxWindow: number
   ctxPercent: number
+  /** Local estimate (no API response yet in this window: fresh, resumed or just compacted). */
+  isEstimate: boolean
   minutes: number
   costUsd?: number
   fiveHour?: Limit

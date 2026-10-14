@@ -9,6 +9,7 @@ type Text = {
   tokens: string
   cache: string
   resets: string
+  estimate: string
   empty: string
   paneTitle: string
   paneOpened: string
@@ -29,6 +30,7 @@ export const TEXT: Record<Lang, Text> = {
     tokens: '토큰',
     cache: '캐시',
     resets: '리셋',
+    estimate: '추정',
     empty: '첫 응답 후 사용량이 표시됩니다.',
     paneTitle: '컨텍스트 사용량',
     paneOpened: '컨텍스트 사용량 패널 열림',
@@ -47,6 +49,7 @@ export const TEXT: Record<Lang, Text> = {
     tokens: 'tokens',
     cache: 'cache',
     resets: 'resets',
+    estimate: 'est.',
     empty: 'Usage shows after the first reply.',
     paneTitle: 'Context usage',
     paneOpened: 'Context usage pane opened',

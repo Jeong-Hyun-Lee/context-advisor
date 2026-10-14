@@ -102,3 +102,22 @@ test('language button toggles the card to English and back', async ($, on) => {
     await ui.unmount()
   }
 })
+
+test('before any API response the card shows a local estimate', async ($, on) => {
+  engine(on)
+  on('session.usage', (_$, e) => ({
+    value: {
+      startedAt: 0,
+      context: e.breakdown
+        ? { window: 1_000_000, breakdown: { totalTokens: 42_000, rawMaxTokens: 1_000_000, percentage: 4 } as never }
+        : { window: 1_000_000 },
+      rateLimits: [],
+    },
+  }))
+  await $.turn.complete({ ...turnDone, usage: undefined })
+
+  const ui = await $.ui.mount({ plugin: 'context-advisor', surface: 'terminal', component: 'AbovePrompt', props: BAND })
+  expect(await ui.find({ text: '~42k/1.0M (추정)' })).toBeDefined()
+  expect(await ui.find({ text: /토큰/ })).toBeUndefined()
+  await ui.unmount()
+})
