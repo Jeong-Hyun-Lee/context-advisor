@@ -1,0 +1,55 @@
+import { expect, test } from 'claude-code/testing'
+
+import { bar, classify, formatModel, gradient, shade, formatSpan, formatTokens, toConfig } from './classify'
+
+test('classify boundaries (percent defaults 50/70)', () => {
+  const c = toConfig({})
+  expect(c.basis).toBe('percent')
+  expect(classify(49, c)).toBe('ok')
+  expect(classify(50, c)).toBe('warn')
+  expect(classify(69, c)).toBe('warn')
+  expect(classify(70, c)).toBe('high')
+})
+
+test('tokens basis uses absolute thresholds', () => {
+  const c = toConfig({ basis: 'tokens' })
+  expect(classify(99_999, c)).toBe('ok')
+  expect(classify(100_000, c)).toBe('warn')
+  expect(classify(200_000, c)).toBe('high')
+})
+
+test('config guards bad values', () => {
+  const c = toConfig({ warnPercent: 80, highPercent: 60, showPanel: false })
+  expect(c.high).toBe(80)
+  expect(c.showPanel).toBe(false)
+  expect(toConfig({ warnPercent: -1 }).warn).toBe(50)
+})
+
+test('bar clamps and fills', () => {
+  expect(bar(0, 10)).toEqual({ filled: '', empty: ' '.repeat(10) })
+  expect(bar(50, 10).filled).toHaveLength(5)
+  expect(bar(150, 10).filled).toHaveLength(10)
+})
+
+test('formatters', () => {
+  expect(formatTokens(950)).toBe('950')
+  expect(formatTokens(128_000)).toBe('128k')
+  expect(formatTokens(1_000_000)).toBe('1.0M')
+  expect(formatSpan(45 * 60_000)).toBe('45m')
+  expect(formatSpan(235 * 60_000)).toBe('3h55m')
+  expect(formatSpan((6 * 24 + 12) * 3_600_000)).toBe('6d12h')
+})
+
+test('formatModel', () => {
+  expect(formatModel('claude-opus-5-5')).toBe('Opus 5.5')
+  expect(formatModel('claude-sonnet-5-5[1m]')).toBe('Sonnet 5.5 [1m]')
+  expect(formatModel('claude-haiku-4-5-20251001')).toBe('Haiku 4.5')
+  expect(formatModel('gpt-x')).toBe('gpt-x')
+})
+
+test('shade and gradient', () => {
+  expect(shade('#ffffff', 0.5)).toBe('#808080')
+  const g = gradient('#4FC3F7', 4)
+  expect(g).toHaveLength(4)
+  expect(g[3]).toBe('#4fc3f7')
+})

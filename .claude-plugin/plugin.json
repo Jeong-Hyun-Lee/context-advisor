@@ -1,0 +1,58 @@
+{
+  "name": "context-advisor",
+  "version": "0.3.0",
+  "description": "컨텍스트·세션·토큰·주간 사용량 표시, 계속/압축/새 세션 추천",
+  "author": {
+    "name": "Joshua Lee"
+  },
+  "license": "MIT",
+  "keywords": [
+    "context",
+    "tokens",
+    "usage",
+    "statusline"
+  ],
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "basis": {
+      "type": "string",
+      "title": "추천 기준",
+      "description": "percent: 컨텍스트 창 대비 %, tokens: 컨텍스트 토큰 절대값",
+      "options": [
+        "percent",
+        "tokens"
+      ],
+      "default": "percent"
+    },
+    "warnPercent": {
+      "type": "number",
+      "title": "압축 추천 %",
+      "description": "basis=percent 일 때 압축 추천 기준",
+      "default": 50
+    },
+    "highPercent": {
+      "type": "number",
+      "title": "새 세션 추천 %",
+      "description": "basis=percent 일 때 새 세션 추천 기준",
+      "default": 70
+    },
+    "warnTokens": {
+      "type": "number",
+      "title": "압축 추천 토큰",
+      "description": "basis=tokens 일 때 압축 추천 기준",
+      "default": 100000
+    },
+    "highTokens": {
+      "type": "number",
+      "title": "새 세션 추천 토큰",
+      "description": "basis=tokens 일 때 새 세션 추천 기준",
+      "default": 200000
+    },
+    "showPanel": {
+      "type": "boolean",
+      "title": "사용량 패널 표시",
+      "description": "프롬프트 위 사용량 프로그레스 패널",
+      "default": true
+    }
+  }
+}

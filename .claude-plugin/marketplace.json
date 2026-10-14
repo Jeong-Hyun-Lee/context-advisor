@@ -1,0 +1,6 @@
+{
+  "name": "context-advisor",
+  "owner": { "name": "Joshua Lee" },
+  "description": "Claude Code 컨텍스트·토큰 사용량 카드와 세션 추천 모드",
+  "plugins": [{ "name": "context-advisor", "source": "./" }]
+}
