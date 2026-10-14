@@ -21,6 +21,18 @@ At the Claude Code terminal prompt:
 
 Answer `y` to `Add marketplace?`, then press Enter to pick the **user** scope (the default). It runs in that session right away, and at user scope it loads in every project and session after.
 
+## Update
+
+When a new version is published, from a terminal:
+
+```
+claude plugin update context-advisor@context-advisor
+```
+
+Or inside Claude Code: `/plugin` → Installed → context-advisor → Update. Restart Claude Code to apply it (a new session in the desktop app or VS Code).
+
+If the new version does not show up, refresh the marketplace first: `claude plugin marketplace update context-advisor`.
+
 ## Where it shows
 
 | Surface | Display |

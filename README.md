@@ -21,6 +21,18 @@ Claude Code 터미널 프롬프트에서:
 
 `Add marketplace?`에 `y`, 범위는 **user**(기본)를 Enter로 선택. 설치한 세션부터 바로 동작하고, user 범위면 이후 모든 프로젝트·세션에서 로드됩니다.
 
+## 업데이트
+
+새 버전이 올라오면 터미널에서:
+
+```
+claude plugin update context-advisor@context-advisor
+```
+
+또는 Claude Code 안에서 `/plugin` → Installed → context-advisor → Update. 적용하려면 Claude Code를 다시 시작합니다 (데스크톱 앱·VS Code는 새 세션).
+
+마켓플레이스 목록이 오래돼 새 버전이 안 보이면 먼저 `claude plugin marketplace update context-advisor`.
+
 ## 표시 위치
 
 | 화면 | 표시 |
