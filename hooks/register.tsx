@@ -16,7 +16,7 @@ import {
   toConfig,
 } from './classify'
 import { TEXT, flip, toLang } from './i18n'
-import { cardSvg } from './svg'
+import { SVG_WIDTH, cardHeight, cardSvg } from './svg'
 import type { SvgMeter } from './svg'
 import type { Config } from './classify'
 
@@ -132,6 +132,8 @@ const drawCard = async ($: EngineInterface, e: RenderInput, config: Config, colu
           <Button key="lang" label={t.toggle} hotkey="l" onPress={onToggle} />
         </Box>
         <Svg
+          width={SVG_WIDTH}
+          height={cardHeight(shown.length)}
           source={cardSvg({ advice: t.advice[ctxLevel], adviceColor: adviceHex, model, meters: shown, footer: config.showPanel ? footer : '' })}
           alt={[advice, ...shown.map(m => `${m.label} ${Math.round(m.percent)}%`)].join(', ')}
         />

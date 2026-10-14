@@ -16,5 +16,5 @@ test('cardSvg draws one track per meter and escapes text', () => {
   expect(svg.startsWith('<svg')).toBe(true)
   expect(svg).toContain('a &lt;b&gt;')
   expect(svg.match(/class="t"/g)).toHaveLength(2)
-  expect(svg).toContain('width="125"')
+  expect(svg).toContain('width="85"')
 })

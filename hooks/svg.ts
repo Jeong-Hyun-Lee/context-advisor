@@ -9,17 +9,21 @@ export type SvgCard = {
   footer: string
 }
 
-const W = 520
-const ROW = 30
-const TOP = 46
-const TRACK_X = 96
-const TRACK_W = 250
+// Compact card; drawn at exactly this size (width/height passed to Svg) so the surface does not scale it up.
+export const SVG_WIDTH = 400
+const W = SVG_WIDTH
+const ROW = 20
+const TOP = 34
+const TRACK_X = 74
+const TRACK_W = 170
 
 const esc = (s: string): string =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
+export const cardHeight = (meters: number): number => TOP + meters * ROW + (meters > 0 ? 24 : 0)
+
 export const cardSvg = (c: SvgCard): string => {
-  const h = TOP + c.meters.length * ROW + 34
+  const h = cardHeight(c.meters.length)
   const defs = c.meters
     .map(
       (m, i) =>
@@ -31,24 +35,24 @@ export const cardSvg = (c: SvgCard): string => {
       const y = TOP + i * ROW
       const fill = Math.round((Math.min(Math.max(m.percent, 0), 100) / 100) * TRACK_W)
       return [
-        `<text x="18" y="${y + 13}" class="l">${esc(m.label)}</text>`,
-        `<rect x="${TRACK_X}" y="${y + 2}" width="${TRACK_W}" height="14" rx="7" class="t"/>`,
-        fill > 0 ? `<rect x="${TRACK_X}" y="${y + 2}" width="${Math.max(fill, 14)}" height="14" rx="7" fill="url(#g${i})"/>` : '',
-        `<text x="${TRACK_X + TRACK_W + 12}" y="${y + 13}" class="p">${Math.round(m.percent)}%</text>`,
-        `<text x="${TRACK_X + TRACK_W + 54}" y="${y + 13}" class="d">${esc(m.detail)}</text>`,
+        `<text x="14" y="${y + 11}" class="l">${esc(m.label)}</text>`,
+        `<rect x="${TRACK_X}" y="${y + 2}" width="${TRACK_W}" height="10" rx="5" class="t"/>`,
+        fill > 0 ? `<rect x="${TRACK_X}" y="${y + 2}" width="${Math.max(fill, 10)}" height="10" rx="5" fill="url(#g${i})"/>` : '',
+        `<text x="${TRACK_X + TRACK_W + 10}" y="${y + 11}" class="p">${Math.round(m.percent)}%</text>`,
+        `<text x="${TRACK_X + TRACK_W + 46}" y="${y + 11}" class="d">${esc(m.detail)}</text>`,
       ].join('')
     })
     .join('')
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${h}" viewBox="0 0 ${W} ${h}">`,
     `<defs>${defs}</defs>`,
-    '<style>text{font:12px system-ui,sans-serif;fill:#c9d1d9}.l{fill:#8b949e}.p{font-weight:600}.d{fill:#8b949e}.t{fill:#30363d}.h{font-size:13px;font-weight:700}</style>',
-    `<rect x=".5" y=".5" width="${W - 1}" height="${h - 1}" rx="12" fill="#161b22" stroke="${c.adviceColor}" stroke-opacity=".6"/>`,
-    `<circle cx="22" cy="22" r="5" fill="${c.adviceColor}"/>`,
-    `<text x="34" y="26" class="h" style="fill:${c.adviceColor}">${esc(c.advice)}</text>`,
-    `<text x="${W - 18}" y="26" text-anchor="end" class="d">${esc(c.model)}</text>`,
+    '<style>text{font:11px system-ui,sans-serif;fill:#c9d1d9}.l{fill:#8b949e}.p{font-weight:600}.d{fill:#8b949e}.t{fill:#30363d}.h{font-size:12px;font-weight:700}</style>',
+    `<rect x=".5" y=".5" width="${W - 1}" height="${h - 1}" rx="10" fill="#161b22" stroke="${c.adviceColor}" stroke-opacity=".6"/>`,
+    `<circle cx="18" cy="17" r="4" fill="${c.adviceColor}"/>`,
+    `<text x="28" y="21" class="h" style="fill:${c.adviceColor}">${esc(c.advice)}</text>`,
+    `<text x="${W - 14}" y="21" text-anchor="end" class="d">${esc(c.model)}</text>`,
     rows,
-    `<text x="18" y="${h - 14}" class="d">${esc(c.footer)}</text>`,
+    `<text x="14" y="${h - 10}" class="d">${esc(c.footer)}</text>`,
     '</svg>',
   ].join('')
 }
