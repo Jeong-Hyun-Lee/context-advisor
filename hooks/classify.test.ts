@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { addUsage, bar, cacheHit, classify, NO_TOKENS, tokenTotal, toTotals, formatModel, gradient, shade, formatSpan, formatTokens, toConfig } from './classify'
+import { addUsage, bar, labelColor, toneOf, cacheHit, classify, NO_TOKENS, tokenTotal, toTotals, formatModel, gradient, shade, formatSpan, formatTokens, toConfig } from './classify'
 
 test('classify boundaries (percent defaults 50/70)', () => {
   const c = toConfig({})
@@ -62,4 +62,15 @@ test('token totals and cache hit match the desktop usage panel', () => {
   expect(cacheHit(NO_TOKENS)).toBe(0)
   expect(toTotals({ total: 5, cacheRead: 2 })).toEqual({ input: 0, output: 0, cacheRead: 2, cacheWrite: 0 })
   expect(toTotals(undefined)).toEqual(NO_TOKENS)
+})
+
+test('theme tone and light-background colors', () => {
+  expect(toneOf('light')).toBe('light')
+  expect(toneOf('light-daltonized')).toBe('light')
+  expect(toneOf('dark-ansi')).toBe('dark')
+  expect(toneOf(undefined)).toBe('dark')
+  expect(gradient('#4FC3F7', 4, 'light')[0]).not.toBe(gradient('#4FC3F7', 4, 'dark')[0])
+  expect(gradient('#4FC3F7', 4, 'light')[3]).toBe('#4fc3f7')
+  expect(labelColor('#ffffff', 'light')).toBe('#b3b3b3')
+  expect(labelColor('#ffffff', 'dark')).toBe('#ffffff')
 })

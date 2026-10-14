@@ -17,4 +17,8 @@ test('cardSvg draws one track per meter and escapes text', () => {
   expect(svg).toContain('a &lt;b&gt;')
   expect(svg.match(/class="t"/g)).toHaveLength(2)
   expect(svg).toContain('width="85"')
+  // light by default, dark only under the host's dark color scheme
+  expect(svg).toContain('--bg:#ffffff')
+  expect(svg).toContain('@media (prefers-color-scheme:dark){svg{--bg:#161b22')
+  expect(svg).not.toMatch(/fill="#161b22"/)
 })

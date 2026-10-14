@@ -72,9 +72,20 @@ export const shade = (hex: string, f: number): string => {
   return `#${hex2(((v >> 16) & 255) * f)}${hex2(((v >> 8) & 255) * f)}${hex2((v & 255) * f)}`
 }
 
-// n cells darkening-to-full along the bar: a left-to-right gradient in plain cells.
-export const gradient = (hex: string, n: number): string[] =>
-  Array.from({ length: n }, (_, i) => shade(hex, 0.55 + (0.45 * (i + 1)) / Math.max(n, 1)))
+export type Tone = 'dark' | 'light'
+
+// Claude Code theme names: light, light-daltonized, light-ansi, ... -> light; anything else (dark*, auto) -> dark.
+export const toneOf = (theme: unknown): Tone => (typeof theme === 'string' && theme.startsWith('light') ? 'light' : 'dark')
+
+// Bar track and readable label hue per background.
+export const TRACK: Record<Tone, string> = { dark: '#30363d', light: '#d8dee4' }
+export const labelColor = (hex: string, tone: Tone): string => (tone === 'light' ? shade(hex, 0.7) : hex)
+
+// n cells ramping up to the full hue: a left-to-right gradient in plain cells. Shallower on light backgrounds.
+export const gradient = (hex: string, n: number, tone: Tone = 'dark'): string[] => {
+  const from = tone === 'light' ? 0.75 : 0.55
+  return Array.from({ length: n }, (_, i) => shade(hex, from + ((1 - from) * (i + 1)) / Math.max(n, 1)))
+}
 
 export const NO_TOKENS: TokenTotals = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
 

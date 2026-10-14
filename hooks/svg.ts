@@ -1,3 +1,5 @@
+import { shade } from './classify'
+
 // SVG card for remote surfaces (desktop, VS Code, mobile); the terminal has no Svg element.
 export type SvgMeter = { label: string; percent: number; color: string; detail: string }
 
@@ -16,6 +18,17 @@ const ROW = 20
 const TOP = 34
 const TRACK_X = 74
 const TRACK_W = 170
+
+const themeCss = (accent: string): string => {
+  const accentLight = shade(accent, 0.7)
+  return [
+    `svg{--bg:#ffffff;--fg:#1f2328;--mut:#59636e;--trk:#d8dee4;--acc:${accentLight}}`,
+    `@media (prefers-color-scheme:dark){svg{--bg:#161b22;--fg:#c9d1d9;--mut:#8b949e;--trk:#30363d;--acc:${accent}}}`,
+    'text{font:11px system-ui,sans-serif;fill:var(--fg)}.l,.d{fill:var(--mut)}.p{font-weight:600}',
+    '.t{fill:var(--trk)}.h{font-size:12px;font-weight:700;fill:var(--acc)}.dot{fill:var(--acc)}',
+    '.bg{fill:var(--bg);stroke:var(--acc);stroke-opacity:.6}',
+  ].join('')
+}
 
 const esc = (s: string): string =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
@@ -46,10 +59,11 @@ export const cardSvg = (c: SvgCard): string => {
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${h}" viewBox="0 0 ${W} ${h}">`,
     `<defs>${defs}</defs>`,
-    '<style>text{font:11px system-ui,sans-serif;fill:#c9d1d9}.l{fill:#8b949e}.p{font-weight:600}.d{fill:#8b949e}.t{fill:#30363d}.h{font-size:12px;font-weight:700}</style>',
-    `<rect x=".5" y=".5" width="${W - 1}" height="${h - 1}" rx="10" fill="#161b22" stroke="${c.adviceColor}" stroke-opacity=".6"/>`,
-    `<circle cx="18" cy="17" r="4" fill="${c.adviceColor}"/>`,
-    `<text x="28" y="21" class="h" style="fill:${c.adviceColor}">${esc(c.advice)}</text>`,
+    // Light by default; the host page's color scheme switches to dark (the SVG is drawn as an image in it).
+    `<style>${themeCss(c.adviceColor)}</style>`,
+    `<rect x=".5" y=".5" width="${W - 1}" height="${h - 1}" rx="10" class="bg"/>`,
+    `<circle cx="18" cy="17" r="4" class="dot"/>`,
+    `<text x="28" y="21" class="h">${esc(c.advice)}</text>`,
     `<text x="${W - 14}" y="21" text-anchor="end" class="d">${esc(c.model)}</text>`,
     rows,
     `<text x="14" y="${h - 10}" class="d">${esc(c.footer)}</text>`,

@@ -8,6 +8,7 @@ import {
   addUsage,
   cacheHit,
   LEVEL_HEX,
+  TRACK,
   PALETTE,
   STYLE,
   classify,
@@ -15,8 +16,10 @@ import {
   formatSpan,
   formatTokens,
   gradient,
+  labelColor,
   limitLevel,
   toConfig,
+  toneOf,
   tokenTotal,
   toTotals,
 } from './classify'
@@ -28,13 +31,13 @@ import type { Config } from './classify'
 const level = atom({ plugin: 'context-advisor', key: 'level' } as const, 'ok')
 const snapshot = atom({ plugin: 'context-advisor', key: 'snapshot' } as const, null)
 const runtime = atom({ plugin: 'context-advisor', key: 'runtime' } as const, null)
+const tone = atom({ plugin: 'context-advisor', key: 'tone' } as const, 'dark')
 const lang = atom({ plugin: 'context-advisor', key: 'lang' } as const, 'ko')
 const tokens = atom({ plugin: 'context-advisor', key: 'tokens' } as const, NO_TOKENS)
 const TOKENS_KEY = 'tokens'
 const REFRESH_MS = 60_000
 const STALE_MS = 5 * 60_000
 
-const EMPTY_BAR = '#30363d'
 const CARD_MAX_WIDTH = 72
 const PANE = 'context-advisor'
 const LANG_KEY = 'lang'
@@ -86,6 +89,16 @@ const refresh = async ($: EngineInterface, config: Config, isApiResponse = false
 
 // The card: advice + model, then (showPanel) a meter per window and session totals; null before the first reading.
 // Terminal: bordered Ink card with per-cell gradient bars. Remote surfaces: an SVG card.
+// Terminal colors that are no theme key follow the /config theme (light* vs the rest).
+const readTone = async ($: EngineInterface) => {
+  const row = (await $.config.list()).find(r => r.key === 'theme')
+  await update($, tone, () => toneOf(row?.value))
+}
+
+// Text and border use theme keys, which follow the person's theme on their own.
+const LEVEL_KEY: Record<Level, string> = { ok: 'success', warn: 'warning', high: 'error' }
+const MUTED = 'inactive'
+
 // Session state redraws the card; the store keeps the choice for later sessions.
 const setLang = async ($: EngineInterface, next: Lang) => {
   await update($, lang, () => next)
@@ -150,14 +163,15 @@ const drawCard = async ($: EngineInterface, e: RenderInput, config: Config, colu
   }
 
   const { Box, Button, Text } = $.ui.resolve(e)
+  const bg = await read($, tone)
 
   const header = (
     <Box key="header" flexDirection="row" justifyContent="space-between">
-      <Text color={adviceHex} bold>
+      <Text color={LEVEL_KEY[ctxLevel]} bold>
         {advice}
       </Text>
       <Box flexDirection="row" gap={1}>
-        <Text color="#8b949e">{model}</Text>
+        <Text color={MUTED}>{model}</Text>
         <Button key="lang" label={t.toggle} hotkey="l" onPress={onToggle} />
       </Box>
     </Box>
@@ -166,20 +180,20 @@ const drawCard = async ($: EngineInterface, e: RenderInput, config: Config, colu
 
   const meterRow = (m: SvgMeter & { level: Level }) => {
     const n = Math.round((Math.min(Math.max(m.percent, 0), 100) / 100) * BAR_WIDTH)
-    const cells = gradient(m.color, n)
+    const cells = gradient(m.color, n, bg)
     return (
       <Box key={m.label} flexDirection="row">
         <Box width={10}>
-          <Text color={m.color}>{m.label}</Text>
+          <Text color={labelColor(m.color, bg)}>{m.label}</Text>
         </Box>
         {cells.map((c, i) => (
           <Text key={`c${i}`} backgroundColor={c}>
             {' '}
           </Text>
         ))}
-        <Text backgroundColor={EMPTY_BAR}>{' '.repeat(BAR_WIDTH - n)}</Text>
-        <Text color={LEVEL_HEX[m.level]} bold>{` ${String(Math.round(m.percent)).padStart(3)}%`}</Text>
-        <Text color="#8b949e">{`  ${m.detail}`}</Text>
+        <Text backgroundColor={TRACK[bg]}>{' '.repeat(BAR_WIDTH - n)}</Text>
+        <Text color={LEVEL_KEY[m.level]} bold>{` ${String(Math.round(m.percent)).padStart(3)}%`}</Text>
+        <Text color={MUTED}>{`  ${m.detail}`}</Text>
       </Box>
     )
   }
@@ -188,13 +202,13 @@ const drawCard = async ($: EngineInterface, e: RenderInput, config: Config, colu
     <Box
       flexDirection="column"
       borderStyle="round"
-      borderColor={adviceHex}
+      borderColor={LEVEL_KEY[ctxLevel]}
       paddingX={1}
       width={Math.min(columns, CARD_MAX_WIDTH)}
     >
       {header}
       {meters.map(meterRow)}
-      <Text color="#8b949e">{footer}</Text>
+      <Text color={MUTED}>{footer}</Text>
     </Box>
   )
 }
@@ -205,6 +219,7 @@ export const register: Register = (on, options) => {
   // AbovePrompt is drawn on terminal + desktop only; the pane reaches every surface (VS Code included).
   on('session.start', async ($, e, next) => {
     const result = await next(e)
+    await readTone($)
     const saved = toLang(await $.store.get(LANG_KEY))
     await update($, lang, () => saved)
     // Resumed session in a new process: pick up its token totals (kept per session id).
@@ -224,6 +239,12 @@ export const register: Register = (on, options) => {
     const result = await next(e)
     if (e.surface !== 'terminal') void $.ui.open({ id: PANE, title: TEXT[await read($, lang)].paneTitle })
     await refresh($, config)
+    return result
+  })
+
+  on('config.set', { key: 'theme' }, async ($, e, next) => {
+    const result = await next(e)
+    await readTone($)
     return result
   })
 
