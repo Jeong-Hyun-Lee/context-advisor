@@ -24,6 +24,6 @@ export type TokenTotals = { input: number; output: number; cacheRead: number; ca
 
 declare module 'claude-code' {
   interface PluginState {
-    'context-advisor': { level: Level; snapshot: Snapshot | null; tokens: TokenTotals; runtime: Runtime | null; lang: Lang; tone: 'dark' | 'light' }
+    'context-advisor': { level: Level; snapshot: Snapshot | null; tokens: TokenTotals; runtime: Runtime | null; lang: Lang }
   }
 }

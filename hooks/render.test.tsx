@@ -6,7 +6,7 @@ const SURFACES = ['terminal', 'desktop'] as const
 const BAND = { hasSurvey: false, isWorking: false, maxRows: 20, bodyColumns: 100 } as unknown as RenderPropsOf['AbovePrompt']
 
 // Stand-in for the engine beneath the plugin: its own hint line / empty band, a turn's result.
-const engine = (on: On) => {
+const engine = (on: On, theme: () => string = () => 'dark') => {
   on('ui.render', ($, e) => {
     const { Text } = $.ui.resolve(e)
     return <Text>engine</Text>
@@ -15,6 +15,7 @@ const engine = (on: On) => {
   mock.clock(on)
   mock.store(on)
   on('session.id', () => ({ value: 's1' }))
+  on('config.list', () => ({ value: [{ key: 'theme', value: theme() }] as never }))
 }
 
 const PANE = { title: '컨텍스트 사용량' } as unknown as RenderPropsOf['Pane']
@@ -121,4 +122,23 @@ test('before any API response the card shows a local estimate', async ($, on) =>
   expect(await ui.find({ text: '~42k/1.0M (추정)' })).toBeDefined()
   expect(await ui.find({ text: /토큰/ })).toBeUndefined()
   await ui.unmount()
+})
+
+test('terminal card follows a light theme read at draw time', async ($, on) => {
+  let theme = 'dark'
+  engine(on, () => theme)
+  on('session.usage', () => ({ value: usage(30) }))
+  await $.turn.complete(turnDone)
+
+  const dark = await $.ui.mount({ plugin: 'context-advisor', surface: 'terminal', component: 'AbovePrompt', props: BAND })
+  const darkTree = JSON.stringify(await dark.drawn())
+  await dark.unmount()
+
+  theme = 'light-ansi'
+  const light = await $.ui.mount({ plugin: 'context-advisor', surface: 'terminal', component: 'AbovePrompt', props: BAND })
+  const lightTree = JSON.stringify(await light.drawn())
+  await light.unmount()
+
+  expect(darkTree).toContain('#30363d')
+  expect(lightTree).toContain('#d8dee4')
 })

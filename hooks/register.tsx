@@ -26,12 +26,11 @@ import {
 import { TEXT, flip, toLang } from './i18n'
 import { SVG_WIDTH, cardHeight, cardSvg } from './svg'
 import type { SvgMeter } from './svg'
-import type { Config } from './classify'
+import type { Config, Tone } from './classify'
 
 const level = atom({ plugin: 'context-advisor', key: 'level' } as const, 'ok')
 const snapshot = atom({ plugin: 'context-advisor', key: 'snapshot' } as const, null)
 const runtime = atom({ plugin: 'context-advisor', key: 'runtime' } as const, null)
-const tone = atom({ plugin: 'context-advisor', key: 'tone' } as const, 'dark')
 const lang = atom({ plugin: 'context-advisor', key: 'lang' } as const, 'ko')
 const tokens = atom({ plugin: 'context-advisor', key: 'tokens' } as const, NO_TOKENS)
 const TOKENS_KEY = 'tokens'
@@ -89,10 +88,14 @@ const refresh = async ($: EngineInterface, config: Config, isApiResponse = false
 
 // The card: advice + model, then (showPanel) a meter per window and session totals; null before the first reading.
 // Terminal: bordered Ink card with per-cell gradient bars. Remote surfaces: an SVG card.
-// Terminal colors that are no theme key follow the /config theme (light* vs the rest).
-const readTone = async ($: EngineInterface) => {
-  const row = (await $.config.list()).find(r => r.key === 'theme')
-  await update($, tone, () => toneOf(row?.value))
+// Terminal colors that are no theme key follow the theme setting (light* vs the rest).
+// Read on every draw: a value cached at session start missed theme changes made later.
+const readTone = async ($: EngineInterface): Promise<Tone> => {
+  try {
+    return toneOf((await $.config.list()).find(r => r.key === 'theme')?.value)
+  } catch {
+    return 'dark'
+  }
 }
 
 // Text and border use theme keys, which follow the person's theme on their own.
@@ -163,7 +166,7 @@ const drawCard = async ($: EngineInterface, e: RenderInput, config: Config, colu
   }
 
   const { Box, Button, Text } = $.ui.resolve(e)
-  const bg = await read($, tone)
+  const bg = await readTone($)
 
   const header = (
     <Box key="header" flexDirection="row" justifyContent="space-between">
@@ -219,7 +222,6 @@ export const register: Register = (on, options) => {
   // AbovePrompt is drawn on terminal + desktop only; the pane reaches every surface (VS Code included).
   on('session.start', async ($, e, next) => {
     const result = await next(e)
-    await readTone($)
     const saved = toLang(await $.store.get(LANG_KEY))
     await update($, lang, () => saved)
     // Resumed session in a new process: pick up its token totals (kept per session id).
@@ -239,12 +241,6 @@ export const register: Register = (on, options) => {
     const result = await next(e)
     if (e.surface !== 'terminal') void $.ui.open({ id: PANE, title: TEXT[await read($, lang)].paneTitle })
     await refresh($, config)
-    return result
-  })
-
-  on('config.set', { key: 'theme' }, async ($, e, next) => {
-    const result = await next(e)
-    await readTone($)
     return result
   })
 
