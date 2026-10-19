@@ -17,7 +17,9 @@ const W = SVG_WIDTH
 const ROW = 20
 const TOP = 34
 const TRACK_X = 74
-const TRACK_W = 170
+const TRACK_W = 110
+const DETAIL_X = TRACK_X + TRACK_W + 42
+const DETAIL_ROOM = W - 14 - DETAIL_X
 
 const themeCss = (accent: string): string => {
   const accentLight = shade(accent, 0.7)
@@ -32,6 +34,12 @@ const themeCss = (accent: string): string => {
 
 const esc = (s: string): string =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+
+// Rough 11px advance: wide (Hangul/CJK) glyphs ~11px, the rest ~6.2px.
+// ponytail: estimate, not measured; only used to squeeze text that would run past the card edge.
+const textWidth = (s: string): number => [...s].reduce((w, ch) => w + (/[ᄀ-ᇿ　-鿿가-힯＀-￯]/.test(ch) ? 11 : 6.2), 0)
+const fit = (s: string, room: number): string =>
+  textWidth(s) > room ? ` textLength="${room}" lengthAdjust="spacingAndGlyphs"` : ''
 
 export const cardHeight = (meters: number): number => TOP + meters * ROW + (meters > 0 ? 24 : 0)
 
@@ -52,7 +60,7 @@ export const cardSvg = (c: SvgCard): string => {
         `<rect x="${TRACK_X}" y="${y + 2}" width="${TRACK_W}" height="10" rx="5" class="t"/>`,
         fill > 0 ? `<rect x="${TRACK_X}" y="${y + 2}" width="${Math.max(fill, 10)}" height="10" rx="5" fill="url(#g${i})"/>` : '',
         `<text x="${TRACK_X + TRACK_W + 10}" y="${y + 11}" class="p">${Math.round(m.percent)}%</text>`,
-        `<text x="${TRACK_X + TRACK_W + 46}" y="${y + 11}" class="d">${esc(m.detail)}</text>`,
+        `<text x="${DETAIL_X}" y="${y + 11}" class="d"${fit(m.detail, DETAIL_ROOM)}>${esc(m.detail)}</text>`,
       ].join('')
     })
     .join('')
@@ -66,7 +74,7 @@ export const cardSvg = (c: SvgCard): string => {
     `<text x="28" y="21" class="h">${esc(c.advice)}</text>`,
     `<text x="${W - 14}" y="21" text-anchor="end" class="d">${esc(c.model)}</text>`,
     rows,
-    `<text x="14" y="${h - 10}" class="d">${esc(c.footer)}</text>`,
+    `<text x="14" y="${h - 10}" class="d"${fit(c.footer, W - 28)}>${esc(c.footer)}</text>`,
     '</svg>',
   ].join('')
 }
