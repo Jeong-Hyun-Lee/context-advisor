@@ -105,6 +105,37 @@ test('language button toggles the card to English and back', async ($, on) => {
   }
 })
 
+test('zoom buttons scale the remote card in steps and stop at the ends', async ($, on) => {
+  engine(on)
+  on('session.usage', () => ({ value: usage(10) }))
+  await $.turn.complete(turnDone)
+
+  const ui = await $.ui.mount({ plugin: 'context-advisor', surface: 'desktop', component: 'Pane', requestId: 'context-advisor', props: PANE })
+  const width = async () => (await ui.find({ type: 'Svg' }))?.props.width
+  expect(await width()).toBe(400)
+  await ui.press({ key: 'zoom-in' })
+  expect(await width()).toBe(500)
+  for (let i = 0; i < 5; i++) await ui.press({ key: 'zoom-in' })
+  expect(await width()).toBe(800)
+  for (let i = 0; i < 6; i++) await ui.press({ key: 'zoom-out' })
+  expect(await width()).toBe(300)
+  await ui.unmount()
+})
+
+test('folded card shows the rate limits as one line of text', async ($, on) => {
+  engine(on)
+  on('session.usage', () => ({ value: usage(10) }))
+  await $.turn.complete(turnDone)
+
+  const ui = await $.ui.mount({ plugin: 'context-advisor', surface: 'vscode', component: 'Pane', requestId: 'context-advisor', props: PANE })
+  await ui.press({ key: 'fold' })
+  expect(await ui.find({ type: 'Svg' })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: '5시간 5% · 주간 1%' })).toBeDefined()
+  await ui.press({ key: 'fold' })
+  expect(await ui.find({ type: 'Svg' })).toBeDefined()
+  await ui.unmount()
+})
+
 test('before any API response the card shows a local estimate', async ($, on) => {
   engine(on)
   on('session.usage', (_$, e) => ({

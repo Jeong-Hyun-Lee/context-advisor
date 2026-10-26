@@ -32,6 +32,8 @@ const level = atom({ plugin: 'context-advisor', key: 'level' } as const, 'ok')
 const snapshot = atom({ plugin: 'context-advisor', key: 'snapshot' } as const, null)
 const runtime = atom({ plugin: 'context-advisor', key: 'runtime' } as const, null)
 const lang = atom({ plugin: 'context-advisor', key: 'lang' } as const, 'ko')
+const zoom = atom({ plugin: 'context-advisor', key: 'zoom' } as const, 1)
+const folded = atom({ plugin: 'context-advisor', key: 'folded' } as const, false)
 const tokens = atom({ plugin: 'context-advisor', key: 'tokens' } as const, NO_TOKENS)
 const TOKENS_KEY = 'tokens'
 const REFRESH_MS = 60_000
@@ -40,6 +42,11 @@ const STALE_MS = 5 * 60_000
 const CARD_MAX_WIDTH = 72
 const PANE = 'context-advisor'
 const LANG_KEY = 'lang'
+const ZOOM_KEY = 'zoom'
+const FOLD_KEY = 'folded'
+// SVG card scale steps (remote surfaces); the terminal follows its own font size.
+const ZOOMS = [0.75, 1, 1.25, 1.5, 2]
+const toZoom = (v: unknown): number => (ZOOMS.includes(v as number) ? (v as number) : 1)
 
 const RANK: Record<Level, number> = { ok: 0, warn: 1, high: 2 }
 
@@ -108,6 +115,19 @@ const setLang = async ($: EngineInterface, next: Lang) => {
   await $.store.set(LANG_KEY, next)
 }
 
+const stepZoom = async ($: EngineInterface, by: 1 | -1) => {
+  const i = ZOOMS.indexOf(await read($, zoom))
+  const next = ZOOMS[Math.min(Math.max(i + by, 0), ZOOMS.length - 1)]
+  await update($, zoom, () => next)
+  await $.store.set(ZOOM_KEY, next)
+}
+
+const toggleFold = async ($: EngineInterface) => {
+  const next = !(await read($, folded))
+  await update($, folded, () => next)
+  await $.store.set(FOLD_KEY, next)
+}
+
 const drawCard = async ($: EngineInterface, e: RenderInput, config: Config, columns: number): Promise<RenderElement | null> => {
   const snap = await read($, snapshot)
   if (snap === null) return null
@@ -148,16 +168,35 @@ const drawCard = async ($: EngineInterface, e: RenderInput, config: Config, colu
   const onToggle = () => setLang($, flip(current))
 
   if (e.surface !== 'terminal') {
-    const { Box, Button, Svg } = $.ui.resolve(e)
+    const { Box, Button, Svg, Text } = $.ui.resolve(e)
     const shown = config.showPanel ? meters : []
+    const scale = await read($, zoom)
+    const foldButton = <Button key="fold" label={(await read($, folded)) ? '▸' : '▾'} onPress={() => toggleFold($)} />
+    const langButton = <Button key="lang" label={t.toggle} hotkey="l" onPress={onToggle} />
+    // Folded: one line of the rate limits (context alone where there are none); plain Text follows the IDE theme.
+    if (await read($, folded)) {
+      const brief = (meters.length > 1 ? meters.slice(1) : meters).map(m => `${m.label} ${Math.round(m.percent)}%`).join(' · ')
+      return (
+        <Box flexDirection="row" justifyContent="space-between" gap={1}>
+          <Text color={LEVEL_KEY[ctxLevel]}>{brief}</Text>
+          <Box flexDirection="row" gap={1}>
+            {langButton}
+            {foldButton}
+          </Box>
+        </Box>
+      )
+    }
     return (
       <Box flexDirection="column">
-        <Box flexDirection="row" justifyContent="flex-end">
-          <Button key="lang" label={t.toggle} hotkey="l" onPress={onToggle} />
+        <Box flexDirection="row" justifyContent="flex-end" gap={1}>
+          {langButton}
+          <Button key="zoom-out" label="−" onPress={() => stepZoom($, -1)} />
+          <Button key="zoom-in" label="+" onPress={() => stepZoom($, 1)} />
+          {foldButton}
         </Box>
         <Svg
-          width={SVG_WIDTH}
-          height={cardHeight(shown.length)}
+          width={Math.round(SVG_WIDTH * scale)}
+          height={Math.round(cardHeight(shown.length) * scale)}
           source={cardSvg({ advice: t.advice[ctxLevel], adviceColor: adviceHex, model, meters: shown, footer: config.showPanel ? footer : '' })}
           alt={[advice, ...shown.map(m => `${m.label} ${Math.round(m.percent)}%`)].join(', ')}
         />
@@ -224,6 +263,10 @@ export const register: Register = (on, options) => {
     const result = await next(e)
     const saved = toLang(await $.store.get(LANG_KEY))
     await update($, lang, () => saved)
+    const savedZoom = toZoom(await $.store.get(ZOOM_KEY))
+    await update($, zoom, () => savedZoom)
+    const savedFold = (await $.store.get(FOLD_KEY)) === true
+    await update($, folded, () => savedFold)
     // Resumed session in a new process: pick up its token totals (kept per session id).
     const id = await $.session.id()
     const kept = (await $.store.get(TOKENS_KEY)) as { id?: unknown; totals?: unknown } | undefined
