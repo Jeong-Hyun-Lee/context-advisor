@@ -62,7 +62,6 @@ export const formatModel = (id: string): string => {
 // One hue per meter so they read apart at a glance; the advice level shows on the % text and card border.
 export const PALETTE = { ctx: '#4FC3F7', fiveHour: '#BA68C8', weekly: '#FFB74D' } as const
 
-export const LEVEL_HEX: Record<Level, string> = { ok: '#66BB6A', warn: '#FFCA28', high: '#EF5350' }
 
 const hex2 = (n: number): string => Math.round(Math.min(255, Math.max(0, n))).toString(16).padStart(2, '0')
 

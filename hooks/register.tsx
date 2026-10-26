@@ -7,7 +7,6 @@ import {
   NO_TOKENS,
   addUsage,
   cacheHit,
-  LEVEL_HEX,
   TRACK,
   PALETTE,
   STYLE,
@@ -24,15 +23,12 @@ import {
   toTotals,
 } from './classify'
 import { TEXT, flip, toLang } from './i18n'
-import { SVG_WIDTH, cardHeight, cardSvg } from './svg'
-import type { SvgMeter } from './svg'
 import type { Config, Tone } from './classify'
 
 const level = atom({ plugin: 'context-advisor', key: 'level' } as const, 'ok')
 const snapshot = atom({ plugin: 'context-advisor', key: 'snapshot' } as const, null)
 const runtime = atom({ plugin: 'context-advisor', key: 'runtime' } as const, null)
 const lang = atom({ plugin: 'context-advisor', key: 'lang' } as const, 'ko')
-const zoom = atom({ plugin: 'context-advisor', key: 'zoom' } as const, 1)
 const folded = atom({ plugin: 'context-advisor', key: 'folded' } as const, false)
 const tokens = atom({ plugin: 'context-advisor', key: 'tokens' } as const, NO_TOKENS)
 const TOKENS_KEY = 'tokens'
@@ -42,11 +38,7 @@ const STALE_MS = 5 * 60_000
 const CARD_MAX_WIDTH = 72
 const PANE = 'context-advisor'
 const LANG_KEY = 'lang'
-const ZOOM_KEY = 'zoom'
 const FOLD_KEY = 'folded'
-// SVG card scale steps (remote surfaces); the terminal follows its own font size.
-const ZOOMS = [0.75, 1, 1.25, 1.5, 2]
-const toZoom = (v: unknown): number => (ZOOMS.includes(v as number) ? (v as number) : 1)
 
 const RANK: Record<Level, number> = { ok: 0, warn: 1, high: 2 }
 
@@ -94,7 +86,8 @@ const refresh = async ($: EngineInterface, config: Config, isApiResponse = false
 }
 
 // The card: advice + model, then (showPanel) a meter per window and session totals; null before the first reading.
-// Terminal: bordered Ink card with per-cell gradient bars. Remote surfaces: an SVG card.
+// Every surface draws Box/Text, so theme keys follow the terminal's or the IDE's theme (an SVG saw only the OS scheme).
+// Terminal bars: per-cell gradient. Remote bars: a filled Box in a track Box.
 // Terminal colors that are no theme key follow the theme setting (light* vs the rest).
 // Read on every draw: a value cached at session start missed theme changes made later.
 const readTone = async ($: EngineInterface): Promise<Tone> => {
@@ -108,18 +101,14 @@ const readTone = async ($: EngineInterface): Promise<Tone> => {
 // Text and border use theme keys, which follow the person's theme on their own.
 const LEVEL_KEY: Record<Level, string> = { ok: 'success', warn: 'warning', high: 'error' }
 const MUTED = 'inactive'
+const TRACK_KEY = 'subtle'
+
+type Meter = { label: string; percent: number; color: string; detail: string; level: Level }
 
 // Session state redraws the card; the store keeps the choice for later sessions.
 const setLang = async ($: EngineInterface, next: Lang) => {
   await update($, lang, () => next)
   await $.store.set(LANG_KEY, next)
-}
-
-const stepZoom = async ($: EngineInterface, by: 1 | -1) => {
-  const i = ZOOMS.indexOf(await read($, zoom))
-  const next = ZOOMS[Math.min(Math.max(i + by, 0), ZOOMS.length - 1)]
-  await update($, zoom, () => next)
-  await $.store.set(ZOOM_KEY, next)
 }
 
 const toggleFold = async ($: EngineInterface) => {
@@ -147,7 +136,7 @@ const drawCard = async ($: EngineInterface, e: RenderInput, config: Config, colu
   const tokenPart = total > 0 ? ` · ${t.tokens} ${formatTokens(total)} · ${t.cache} ${cacheHit(totals)}%` : ''
   const footer = `${t.session} ${formatSpan(snap.minutes * 60_000)}${tokenPart}${cost}`
 
-  const meters: (SvgMeter & { level: Level })[] = [
+  const meters: Meter[] = [
     {
       label: t.ctx,
       percent: snap.ctxPercent,
@@ -163,49 +152,32 @@ const drawCard = async ($: EngineInterface, e: RenderInput, config: Config, colu
   addLimit(t.weekly, PALETTE.weekly, snap.weekly)
 
   const advice = `${STYLE[ctxLevel].icon} ${t.advice[ctxLevel]}`
-  const adviceHex = LEVEL_HEX[ctxLevel]
-
   const onToggle = () => setLang($, flip(current))
 
-  if (e.surface !== 'terminal') {
-    const { Box, Button, Svg, Text } = $.ui.resolve(e)
-    const shown = config.showPanel ? meters : []
-    const scale = await read($, zoom)
-    const foldButton = <Button key="fold" label={(await read($, folded)) ? '▸' : '▾'} onPress={() => toggleFold($)} />
-    const langButton = <Button key="lang" label={t.toggle} hotkey="l" onPress={onToggle} />
-    // Folded: one line of the rate limits (context alone where there are none); plain Text follows the IDE theme.
-    if (await read($, folded)) {
-      const brief = (meters.length > 1 ? meters.slice(1) : meters).map(m => `${m.label} ${Math.round(m.percent)}%`).join(' · ')
-      return (
-        <Box flexDirection="row" justifyContent="space-between" gap={1}>
-          <Text color={LEVEL_KEY[ctxLevel]}>{brief}</Text>
-          <Box flexDirection="row" gap={1}>
-            {langButton}
-            {foldButton}
-          </Box>
-        </Box>
-      )
-    }
+  const { Box, Button, Text } = $.ui.resolve(e)
+  const isRemote = e.surface !== 'terminal'
+  const isFolded = isRemote && (await read($, folded))
+  const bg = await readTone($)
+
+  // Remote: borderless dim text buttons; the terminal keeps its [ EN ] look.
+  const buttons = [<Button key="lang" label={t.toggle} hotkey="l" onPress={onToggle} {...(isRemote ? { plain: true, dimColor: true } : {})} />]
+  if (isRemote) buttons.push(<Button key="fold" label={isFolded ? t.unfold : t.fold} plain dimColor onPress={() => toggleFold($)} />)
+  const controls = (
+    <Box flexDirection="row" gap={2}>
+      {buttons}
+    </Box>
+  )
+
+  // Folded: one line of the rate limits (context alone where there are none).
+  if (isFolded) {
+    const brief = (meters.length > 1 ? meters.slice(1) : meters).map(m => `${m.label} ${Math.round(m.percent)}%`).join(' · ')
     return (
-      <Box flexDirection="column">
-        <Box flexDirection="row" justifyContent="flex-end" gap={1}>
-          {langButton}
-          <Button key="zoom-out" label="−" onPress={() => stepZoom($, -1)} />
-          <Button key="zoom-in" label="+" onPress={() => stepZoom($, 1)} />
-          {foldButton}
-        </Box>
-        <Svg
-          width={Math.round(SVG_WIDTH * scale)}
-          height={Math.round(cardHeight(shown.length) * scale)}
-          source={cardSvg({ advice: t.advice[ctxLevel], adviceColor: adviceHex, model, meters: shown, footer: config.showPanel ? footer : '' })}
-          alt={[advice, ...shown.map(m => `${m.label} ${Math.round(m.percent)}%`)].join(', ')}
-        />
+      <Box flexDirection="row" justifyContent="space-between" gap={1}>
+        <Text color={LEVEL_KEY[ctxLevel]}>{brief}</Text>
+        {controls}
       </Box>
     )
   }
-
-  const { Box, Button, Text } = $.ui.resolve(e)
-  const bg = await readTone($)
 
   const header = (
     <Box key="header" flexDirection="row" justifyContent="space-between">
@@ -214,31 +186,42 @@ const drawCard = async ($: EngineInterface, e: RenderInput, config: Config, colu
       </Text>
       <Box flexDirection="row" gap={1}>
         <Text color={MUTED}>{model}</Text>
-        <Button key="lang" label={t.toggle} hotkey="l" onPress={onToggle} />
+        {controls}
       </Box>
     </Box>
   )
   if (!config.showPanel) return header
 
-  const meterRow = (m: SvgMeter & { level: Level }) => {
-    const n = Math.round((Math.min(Math.max(m.percent, 0), 100) / 100) * BAR_WIDTH)
-    const cells = gradient(m.color, n, bg)
-    return (
-      <Box key={m.label} flexDirection="row">
-        <Box width={10}>
-          <Text color={labelColor(m.color, bg)}>{m.label}</Text>
+  const bar = (m: Meter) => {
+    const pct = Math.min(Math.max(m.percent, 0), 100)
+    if (isRemote) {
+      return (
+        <Box width={BAR_WIDTH} height={1} backgroundColor={TRACK_KEY}>
+          <Box width={`${pct}%`} height={1} backgroundColor={m.color} />
         </Box>
-        {cells.map((c, i) => (
-          <Text key={`c${i}`} backgroundColor={c}>
-            {' '}
-          </Text>
-        ))}
-        <Text backgroundColor={TRACK[bg]}>{' '.repeat(BAR_WIDTH - n)}</Text>
-        <Text color={LEVEL_KEY[m.level]} bold>{` ${String(Math.round(m.percent)).padStart(3)}%`}</Text>
-        <Text color={MUTED}>{`  ${m.detail}`}</Text>
-      </Box>
-    )
+      )
+    }
+    const n = Math.round((pct / 100) * BAR_WIDTH)
+    return [
+      ...gradient(m.color, n, bg).map((c, i) => (
+        <Text key={`c${i}`} backgroundColor={c}>
+          {' '}
+        </Text>
+      )),
+      <Text key="track" backgroundColor={TRACK[bg]}>{' '.repeat(BAR_WIDTH - n)}</Text>,
+    ]
   }
+
+  const meterRow = (m: Meter) => (
+    <Box key={m.label} flexDirection="row">
+      <Box width={10}>
+        <Text color={isRemote ? MUTED : labelColor(m.color, bg)}>{m.label}</Text>
+      </Box>
+      {bar(m)}
+      <Text color={LEVEL_KEY[m.level]} bold>{` ${String(Math.round(m.percent)).padStart(3)}%`}</Text>
+      <Text color={MUTED}>{`  ${m.detail}`}</Text>
+    </Box>
+  )
 
   return (
     <Box
@@ -263,8 +246,6 @@ export const register: Register = (on, options) => {
     const result = await next(e)
     const saved = toLang(await $.store.get(LANG_KEY))
     await update($, lang, () => saved)
-    const savedZoom = toZoom(await $.store.get(ZOOM_KEY))
-    await update($, zoom, () => savedZoom)
     const savedFold = (await $.store.get(FOLD_KEY)) === true
     await update($, folded, () => savedFold)
     // Resumed session in a new process: pick up its token totals (kept per session id).

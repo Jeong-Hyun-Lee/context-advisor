@@ -15,6 +15,8 @@ type Text = {
   paneTitle: string
   paneOpened: string
   toggle: string
+  fold: string
+  unfold: string
 }
 
 export const TEXT: Record<Lang, Text> = {
@@ -37,6 +39,8 @@ export const TEXT: Record<Lang, Text> = {
     paneTitle: '컨텍스트 사용량',
     paneOpened: '컨텍스트 사용량 패널 열림',
     toggle: 'EN',
+    fold: '접기',
+    unfold: '펼치기',
   },
   en: {
     advice: {
@@ -57,6 +61,8 @@ export const TEXT: Record<Lang, Text> = {
     paneTitle: 'Context usage',
     paneOpened: 'Context usage pane opened',
     toggle: 'KO',
+    fold: 'Fold',
+    unfold: 'Unfold',
   },
 }
 

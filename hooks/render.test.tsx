@@ -63,9 +63,10 @@ test('panel draws bars and advice level after a turn', async ($, on) => {
   await term.unmount()
 
   const desk = await $.ui.mount({ plugin: 'context-advisor', surface: 'desktop', component: 'AbovePrompt', props: BAND })
-  const svg = await desk.find({ type: 'Svg' })
-  expect(String(svg?.props.source)).toContain('55%')
-  expect(String(svg?.props.alt)).toContain('/compact')
+  // Native Box/Text (theme keys follow the IDE), the bar a filled Box in a track Box.
+  expect(await desk.find({ type: 'Svg' })).toBeUndefined()
+  expect(await desk.find({ type: 'Text', text: /\/compact/ })).toBeDefined()
+  expect(await desk.find({ type: 'Box', props: { width: '55%' } })).toBeDefined()
   await desk.unmount()
 })
 
@@ -79,7 +80,7 @@ test('pane draws the card on every surface, VS Code included', async ($, on) => 
 
   await $.turn.complete(turnDone)
   const vs = await $.ui.mount({ plugin: 'context-advisor', surface: 'vscode', component: 'Pane', requestId: 'context-advisor', props: PANE })
-  expect(String((await vs.find({ type: 'Svg' }))?.props.alt)).toContain('새 세션 권장')
+  expect(await vs.find({ type: 'Text', text: /새 세션 권장/ })).toBeDefined()
   await vs.unmount()
 
   const term = await $.ui.mount({ plugin: 'context-advisor', surface: 'terminal', component: 'Pane', requestId: 'context-advisor', props: PANE })
@@ -97,29 +98,11 @@ test('language button toggles the card to English and back', async ($, on) => {
     expect((await ui.find({ type: 'Button' }))?.props.label).toBe('EN')
     await ui.press({ key: 'lang' })
     expect((await ui.find({ type: 'Button' }))?.props.label).toBe('KO')
-    if (surface === 'terminal') expect(await ui.find({ type: 'Text', text: /Context OK/ })).toBeDefined()
-    else expect(String((await ui.find({ type: 'Svg' }))?.props.alt)).toContain('Context OK')
+    expect(await ui.find({ type: 'Text', text: /Context OK/ })).toBeDefined()
     await ui.press({ key: 'lang' })
     expect((await ui.find({ type: 'Button' }))?.props.label).toBe('EN')
     await ui.unmount()
   }
-})
-
-test('zoom buttons scale the remote card in steps and stop at the ends', async ($, on) => {
-  engine(on)
-  on('session.usage', () => ({ value: usage(10) }))
-  await $.turn.complete(turnDone)
-
-  const ui = await $.ui.mount({ plugin: 'context-advisor', surface: 'desktop', component: 'Pane', requestId: 'context-advisor', props: PANE })
-  const width = async () => (await ui.find({ type: 'Svg' }))?.props.width
-  expect(await width()).toBe(400)
-  await ui.press({ key: 'zoom-in' })
-  expect(await width()).toBe(500)
-  for (let i = 0; i < 5; i++) await ui.press({ key: 'zoom-in' })
-  expect(await width()).toBe(800)
-  for (let i = 0; i < 6; i++) await ui.press({ key: 'zoom-out' })
-  expect(await width()).toBe(300)
-  await ui.unmount()
 })
 
 test('folded card shows the rate limits as one line of text', async ($, on) => {
@@ -128,11 +111,12 @@ test('folded card shows the rate limits as one line of text', async ($, on) => {
   await $.turn.complete(turnDone)
 
   const ui = await $.ui.mount({ plugin: 'context-advisor', surface: 'vscode', component: 'Pane', requestId: 'context-advisor', props: PANE })
+  expect(await ui.find({ type: 'Button', props: { label: '접기' } })).toBeDefined()
   await ui.press({ key: 'fold' })
-  expect(await ui.find({ type: 'Svg' })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /컨텍스트 여유/ })).toBeUndefined()
   expect(await ui.find({ type: 'Text', text: '5시간 5% · 주간 1%' })).toBeDefined()
   await ui.press({ key: 'fold' })
-  expect(await ui.find({ type: 'Svg' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /컨텍스트 여유/ })).toBeDefined()
   await ui.unmount()
 })
 
