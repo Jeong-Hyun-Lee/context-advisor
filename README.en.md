@@ -43,6 +43,11 @@ If the new version does not show up, refresh the marketplace first: `claude plug
 
 Before the first reply (new session, resumed session, right after `/compact`) the card shows a local estimate (`~42k/1.0M (est.)`, no API request sent).
 
+Buttons above the desktop / VS Code card (not on the terminal card; the choice is kept for later sessions):
+
+- `−` / `+`: zoom the card out / in (75 / 100 / 125 / 150 / 200%)
+- `▾` / `▸`: fold / unfold. Folded, only one line of text shows: `5h 4% · Weekly 1%` (context % when there are no rate limits)
+
 ## What the numbers mean
 
 | Item | Source |
